@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>日本の農業従事者 - 地域別分布</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  min-height: 100vh;
+  background: linear-gradient(160deg, #0f1923 0%, #1a2a1a 60%, #0f1923 100%);
+  font-family: 'Noto Sans JP', sans-serif;
+  color: #e8f5e9;
+  padding: 20px 14px 50px;
+}
+.header { text-align: center; margin-bottom: 20px; }
+.title {
+  font-size: clamp(18px, 5.5vw, 26px); font-weight: 900; letter-spacing: 1px;
+  background: linear-gradient(90deg, #22c55e, #84cc16);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  margin-bottom: 6px; line-height: 1.3;
+}
+.subtitle { color: #86efac; font-size: clamp(10px, 2.8vw, 12px); line-height: 1.6; }
+.tabs { display: flex; justify-content: center; gap: 6px; margin-bottom: 16px; flex-wrap: nowrap; width: 100%; }
+.tab {
+  padding: 7px 10px; border-radius: 999px; border: none; cursor: pointer;
+  font-size: clamp(10px, 2.6vw, 12px); font-weight: 700;
+  font-family: 'Noto Sans JP', sans-serif; transition: all 0.2s;
+  -webkit-tap-highlight-color: transparent; white-space: nowrap; flex: 1; text-align: center;
+}
+.tab.active { background: linear-gradient(90deg, #22c55e, #84cc16); color: #000; box-shadow: 0 0 14px #22c55e44; }
+.tab.inactive { background: rgba(255,255,255,0.07); color: #86efac; }
+.chart-box {
+  background: rgba(255,255,255,0.04);
+  border-radius: 18px; border: 1px solid rgba(134,239,172,0.15);
+  padding: 16px 12px 14px;
+  max-width: 600px; margin: 0 auto 16px;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.4);
+}
+.chart-title { text-align: center; color: #86efac; font-size: clamp(11px,3vw,13px); margin-bottom: 12px; font-weight: 700; }
+.age-legend { display: flex; justify-content: center; gap: 14px; margin-top: 10px; flex-wrap: wrap; }
+.age-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: #aaa; }
+.age-dot { width: 11px; height: 11px; border-radius: 3px; }
+.region-select-wrap { max-width: 600px; margin: 0 auto 14px; }
+.region-label { color: #86efac; font-size: 11px; margin-bottom: 6px; text-align: center; }
+.region-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.rgn-btn {
+  padding: 9px 4px; border-radius: 10px; border: 1px solid rgba(134,239,172,0.2);
+  background: rgba(255,255,255,0.04); color: #86efac;
+  font-size: clamp(9px, 2.5vw, 11px); font-weight: 700; cursor: pointer;
+  font-family: 'Noto Sans JP', sans-serif; text-align: center;
+  transition: all 0.15s; -webkit-tap-highlight-color: transparent; line-height: 1.3;
+}
+.rgn-btn.active { background: rgba(34,197,94,0.2); border-color: #22c55e; color: #fff; }
+.summary-grid {
+  max-width: 600px; margin: 0 auto 14px;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+}
+.sum-card {
+  background: rgba(255,255,255,0.04); border-radius: 14px; padding: 12px 14px;
+  border: 1px solid rgba(255,255,255,0.07);
+}
+.sum-emoji { font-size: 18px; margin-bottom: 4px; }
+.sum-label { color: #64748b; font-size: 10px; margin-bottom: 2px; }
+.sum-value { font-weight: 900; font-size: clamp(14px,4vw,18px); }
+.sum-sub { color: #64748b; font-size: 10px; margin-top: 2px; }
+.insight-row { display: flex; align-items: center; margin-bottom: 8px; }
+.insight-name { font-size: 11px; color: #ccc; min-width: 58px; }
+.insight-bar-wrap { flex: 1; margin: 0 8px; height: 7px; background: rgba(255,255,255,0.08); border-radius: 99px; overflow: hidden; }
+.insight-bar { height: 100%; border-radius: 99px; transition: width 0.5s ease; }
+.insight-num { font-size: 11px; font-weight: 700; min-width: 38px; text-align: right; }
+.view { display: none; }
+.view.active { display: block; }
+.note { text-align: center; color: #334155; font-size: 10px; margin-top: 18px; padding: 0 10px; line-height: 1.7; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="title">農業従事者 地域別分布</div>
+  <div class="subtitle">8地域 × 年齢層 × 従事者数<br>（2020年農林業センサス推計）</div>
+</div>
+
+<div class="tabs">
+  <button class="tab active" onclick="switchView('corp')">🏢 法人vs個人</button>
+  <button class="tab inactive" onclick="switchView('indiv')">👤 個人詳細</button>
+</div>
+
+<!-- VIEW 1 -->
+<div id="view-regional" class="view">
+  <div class="chart-box">
+    <div class="chart-title">地域別 農業従事者数と年齢層構成（千人）</div>
+    <canvas id="regionalChart"></canvas>
+    <div class="age-legend">
+      <div class="age-item"><div class="age-dot" style="background:#4ade80"></div>若年（〜49歳）</div>
+      <div class="age-item"><div class="age-dot" style="background:#facc15"></div>中年（50〜64歳）</div>
+      <div class="age-item"><div class="age-dot" style="background:#f87171"></div>高齢（65歳〜）</div>
+    </div>
+  </div>
+</div>
+
+
+<!-- VIEW BUBBLE -->
+<div id="view-bubble" class="view">
+  <div class="chart-box">
+    <div class="chart-title">作業の重さ × 平均年齢　（バブル＝従事者数）</div>
+    <div style="text-align:center;color:#64748b;font-size:10px;margin-bottom:10px">← 軽い作業（花き・野菜系）　　重い作業（米・麦）→</div>
+    <canvas id="bubbleChart"></canvas>
+  </div>
+  <div class="chart-box" style="padding:14px 16px">
+    <div class="chart-title" style="margin-bottom:10px">各地域の主要作物と特徴</div>
+    <div id="bubbleLegend" style="display:grid;grid-template-columns:1fr 1fr;gap:8px"></div>
+  </div>
+</div>
+
+<!-- VIEW 2 -->
+<div id="view-detail" class="view">
+  <div class="region-select-wrap">
+    <div class="region-label">地域を選んでください</div>
+    <div class="region-grid" id="regionBtns"></div>
+  </div>
+  <div class="summary-grid">
+    <div class="sum-card">
+      <div class="sum-emoji">👨‍🌾</div>
+      <div class="sum-label">農業従事者数（推計）</div>
+      <div class="sum-value" id="d-total">—</div>
+      <div class="sum-sub" id="d-pct">全国シェア —%</div>
+    </div>
+    <div class="sum-card">
+      <div class="sum-emoji">🎂</div>
+      <div class="sum-label">推計平均年齢</div>
+      <div class="sum-value" id="d-age">—</div>
+      <div class="sum-sub" id="d-age-label">—</div>
+    </div>
+    <div class="sum-card">
+      <div class="sum-emoji">🌱</div>
+      <div class="sum-label">若年（〜49歳）の割合</div>
+      <div class="sum-value" id="d-young">—</div>
+      <div class="sum-sub" id="d-young-abs">—千人</div>
+    </div>
+    <div class="sum-card">
+      <div class="sum-emoji">🌾</div>
+      <div class="sum-label">主要農産物</div>
+      <div class="sum-value" id="d-crop" style="font-size:clamp(11px,3vw,13px)">—</div>
+      <div class="sum-sub" id="d-feature">—</div>
+    </div>
+  </div>
+  <div class="chart-box">
+    <div class="chart-title" id="d-chart-title">年齢層構成（ドーナツ）</div>
+    <canvas id="detailChart"></canvas>
+  </div>
+</div>
+
+<!-- VIEW 3 -->
+<div id="view-rank" class="view">
+  <div class="chart-box">
+    <div class="chart-title">🌱 若年農業者（〜49歳）の割合</div>
+    <div id="youngRankList" style="padding:4px 0"></div>
+  </div>
+  <div class="chart-box">
+    <div class="chart-title">🎂 推計平均年齢（低い順＝若い）</div>
+    <div id="ageRankList" style="padding:4px 0"></div>
+  </div>
+  <div class="chart-box">
+    <div class="chart-title">👨‍🌾 農業従事者数（多い順）</div>
+    <div id="totalRankList" style="padding:4px 0"></div>
+  </div>
+</div>
+
+
+<!-- VIEW CORP -->
+<div id="view-corp" class="view active">
+
+  <!-- Big summary cards -->
+  <div style="max-width:600px;margin:0 auto 14px;display:grid;grid-template-columns:1fr 1fr;gap:10px">
+    <div style="background:rgba(99,102,241,0.12);border:1px solid #6366f1;border-radius:16px;padding:14px;text-align:center">
+      <div style="font-size:22px;margin-bottom:4px">🏢</div>
+      <div style="color:#a5b4fc;font-size:10px;margin-bottom:4px">法人・団体経営体</div>
+      <div style="font-size:clamp(26px,8vw,36px);font-weight:900;color:#818cf8">40%</div>
+      <div style="color:#6366f1;font-size:10px;margin-top:2px">経営体数はわずか3.5%</div>
+      <div style="color:#94a3b8;font-size:9px;margin-top:4px">約3.1万経営体</div>
+    </div>
+    <div style="background:rgba(34,197,94,0.1);border:1px solid #22c55e;border-radius:16px;padding:14px;text-align:center">
+      <div style="font-size:22px;margin-bottom:4px">👨‍🌾</div>
+      <div style="color:#86efac;font-size:10px;margin-bottom:4px">個人経営体</div>
+      <div style="font-size:clamp(26px,8vw,36px);font-weight:900;color:#4ade80">60%</div>
+      <div style="color:#22c55e;font-size:10px;margin-top:2px">経営体数は96.5%</div>
+      <div style="color:#94a3b8;font-size:9px;margin-top:4px">約103.7万経営体</div>
+    </div>
+  </div>
+
+  <div style="max-width:600px;margin:0 auto 6px;text-align:center;color:#94a3b8;font-size:10px;padding:0 4px">
+    ※ 農産物販売金額規模別経営体数に各階層中間値を乗じた農水省推計
+  </div>
+
+  <!-- Donut + trend side by side -->
+  <div style="max-width:600px;margin:0 auto 14px;display:grid;grid-template-columns:1fr 1fr;gap:10px">
+    <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:12px">
+      <div style="text-align:center;color:#86efac;font-size:11px;font-weight:700;margin-bottom:8px">販売金額シェア（2020年）</div>
+      <canvas id="corpDonut" height="160"></canvas>
+    </div>
+    <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:12px">
+      <div style="text-align:center;color:#86efac;font-size:11px;font-weight:700;margin-bottom:8px">法人シェアの推移</div>
+      <canvas id="corpTrend" height="160"></canvas>
+    </div>
+  </div>
+
+  <!-- Sales band breakdown -->
+  <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(134,239,172,0.15);border-radius:18px;padding:16px 14px;max-width:600px;margin:0 auto 14px">
+    <div style="text-align:center;color:#86efac;font-size:12px;font-weight:700;margin-bottom:14px">売上規模帯別 法人シェア</div>
+    <div id="bandChart"></div>
+    <div style="margin-top:12px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap">
+      <div style="display:flex;align-items:center;gap:5px;font-size:10px;color:#aaa">
+        <div style="width:10px;height:10px;border-radius:2px;background:#818cf8"></div>法人・団体
+      </div>
+      <div style="display:flex;align-items:center;gap:5px;font-size:10px;color:#aaa">
+        <div style="width:10px;height:10px;border-radius:2px;background:#4ade80"></div>個人
+      </div>
+    </div>
+  </div>
+
+  <!-- Key insight box -->
+  <div style="background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.3);border-radius:14px;padding:14px 16px;max-width:600px;margin:0 auto 14px">
+    <div style="color:#fbbf24;font-size:12px;font-weight:700;margin-bottom:8px">💡 構造のポイント</div>
+    <div style="color:#d1d5db;font-size:11px;line-height:1.8">
+      • 経営体数は<span style="color:#fbbf24">96.5%が個人</span>だが、売上では法人・団体が<span style="color:#818cf8">40%</span>を占める<br>
+      • <span style="color:#f87171">5億円超</span>の大規模経営体の<span style="color:#f87171">9割強</span>が法人<br>
+      • 法人の販売金額シェアは2005年の約15%から<span style="color:#fbbf24">25年で2.7倍</span>に拡大中<br>
+      • 個人の大多数は<span style="color:#4ade80">100万円未満の小規模</span>副業・高齢農家
+    </div>
+  </div>
+
+</div>
+
+
+<!-- VIEW INDIV -->
+<div id="view-indiv" class="view">
+
+  <div style="max-width:600px;margin:0 auto 8px;text-align:center">
+    <div style="color:#86efac;font-size:clamp(12px,3.5vw,14px);font-weight:900;margin-bottom:2px">👤 個人経営体 詳細分析</div>
+    <div style="color:#64748b;font-size:10px">2020年農林業センサス（農水省）推計 / 全国約103.7万経営体</div>
+  </div>
+
+  <!-- Toggle buttons -->
+  <div style="max-width:600px;margin:0 auto 12px;display:flex;gap:8px;justify-content:center">
+    <button id="indiv-btn-sales" onclick="showIndivChart('sales')"
+      style="flex:1;padding:8px;border-radius:10px;border:none;cursor:pointer;font-family:inherit;font-size:clamp(10px,2.8vw,12px);font-weight:700;background:linear-gradient(90deg,#22c55e,#84cc16);color:#000;-webkit-tap-highlight-color:transparent">
+      📊 売上規模別
+    </button>
+    <button id="indiv-btn-region" onclick="showIndivChart('region')"
+      style="flex:1;padding:8px;border-radius:10px;border:none;cursor:pointer;font-family:inherit;font-size:clamp(10px,2.8vw,12px);font-weight:700;background:rgba(255,255,255,0.07);color:#86efac;-webkit-tap-highlight-color:transparent">
+      🗾 地域別
+    </button>
+    <button id="indiv-btn-both" onclick="showIndivChart('both')"
+      style="flex:1;padding:8px;border-radius:10px;border:none;cursor:pointer;font-family:inherit;font-size:clamp(10px,2.8vw,12px);font-weight:700;background:rgba(255,255,255,0.07);color:#86efac;-webkit-tap-highlight-color:transparent">
+      🔀 重ねて比較
+    </button>
+  </div>
+
+  <!-- Sales chart -->
+  <div id="indiv-sales-box" style="background:rgba(255,255,255,0.04);border:1px solid rgba(134,239,172,0.15);border-radius:18px;padding:16px 12px 14px;max-width:600px;margin:0 auto 14px">
+    <div style="text-align:center;color:#86efac;font-size:12px;font-weight:700;margin-bottom:4px">売上規模別 個人経営体数</div>
+    <div style="text-align:center;color:#64748b;font-size:10px;margin-bottom:10px">（推計 / 全体に占める割合）</div>
+    <canvas id="indivSalesChart"></canvas>
+    <div style="margin-top:12px;background:rgba(74,222,128,0.06);border-radius:10px;padding:10px 12px">
+      <div style="color:#4ade80;font-size:11px;font-weight:700;margin-bottom:6px">📌 構成のポイント</div>
+      <div id="salesInsight" style="color:#94a3b8;font-size:10px;line-height:1.8"></div>
+    </div>
+  </div>
+
+  <!-- Region chart -->
+  <div id="indiv-region-box" style="display:none;background:rgba(255,255,255,0.04);border:1px solid rgba(134,239,172,0.15);border-radius:18px;padding:16px 12px 14px;max-width:600px;margin:0 auto 14px">
+    <div style="text-align:center;color:#86efac;font-size:12px;font-weight:700;margin-bottom:4px">地域別 個人経営体数</div>
+    <div style="text-align:center;color:#64748b;font-size:10px;margin-bottom:10px">（千経営体）</div>
+    <canvas id="indivRegionChart"></canvas>
+    <div style="margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:8px" id="regionCards"></div>
+  </div>
+
+  <!-- Both combined chart -->
+  <div id="indiv-both-box" style="display:none;background:rgba(255,255,255,0.04);border:1px solid rgba(134,239,172,0.15);border-radius:18px;padding:16px 12px 14px;max-width:600px;margin:0 auto 14px">
+    <div style="text-align:center;color:#86efac;font-size:12px;font-weight:700;margin-bottom:4px">地域 × 売上規模 比較</div>
+    <div style="text-align:center;color:#64748b;font-size:10px;margin-bottom:10px">各地域の規模別構成（積み上げ棒）</div>
+    <canvas id="indivBothChart"></canvas>
+    <div style="display:flex;justify-content:center;gap:10px;margin-top:10px;flex-wrap:wrap" id="bothLegend"></div>
+  </div>
+
+</div>
+
+<p class="note">
+  ※ 2020年農林業センサス（農林水産省）都道府県データを基にした地域別推計値<br>
+  甲信越＝新潟・長野・山梨　中部＝富山・石川・福井・静岡・愛知・岐阜・三重
+</p>
+
+<script>
+const regions = [
+  { name:"北海道", short:"北海道", total:94,  young:18, middle:28, old:48,  avgAge:64, crops:"小麦・酪農・じゃがいも", feature:"大規模農業・機械化が進む", color:"#38bdf8" },
+  { name:"東北",   short:"東北",   total:238, young:19, middle:45, old:174, avgAge:71, crops:"米・りんご・野菜",       feature:"米どころ・高齢化が最も深刻", color:"#a78bfa" },
+  { name:"関東",   short:"関東",   total:162, young:22, middle:37, old:103, avgAge:68, crops:"野菜・米・畜産",         feature:"都市近郊農業・野菜大産地",  color:"#34d399" },
+  { name:"甲信越", short:"甲信越", total:118, young:14, middle:24, old:80,  avgAge:69, crops:"米・果物・野菜",          feature:"長野は多品目・高原野菜産地", color:"#fb923c" },
+  { name:"中部",   short:"中部",   total:155, young:23, middle:38, old:94,  avgAge:67, crops:"野菜・米・花き",          feature:"施設園芸・花き大産地（愛知）",color:"#fbbf24" },
+  { name:"関西",   short:"関西",   total:97,  young:12, middle:21, old:64,  avgAge:69, crops:"米・野菜・果物",          feature:"兵庫・京都で米・果樹が中心", color:"#f472b6" },
+  { name:"中国・四国", short:"中国四国", total:165, young:14, middle:31, old:120, avgAge:71, crops:"米・みかん・野菜", feature:"中山間地域多く高齢化深刻",  color:"#4ade80" },
+  { name:"九州・沖縄", short:"九州沖縄", total:334, young:47, middle:74, old:213, avgAge:67, crops:"野菜・畜産・さとうきび", feature:"農業従事者最多・比較的若い",  color:"#f87171" },
+];
+const totalNation = regions.reduce((s,r) => s+r.total, 0);
+const GRID = "rgba(255,255,255,0.07)", TICK = "#86efac";
+
+// --- View 1 ---
+new Chart(document.getElementById("regionalChart"), {
+  type: "bar",
+  data: {
+    labels: regions.map(r => r.short),
+    datasets: [
+      { label:"若年（〜49歳）",  data: regions.map(r=>r.young),  backgroundColor:"#4ade80", stack:"a" },
+      { label:"中年（50〜64歳）",data: regions.map(r=>r.middle), backgroundColor:"#facc15", stack:"a" },
+      { label:"高齢（65歳〜）",  data: regions.map(r=>r.old),   backgroundColor:"#f87171", stack:"a", borderRadius:{topLeft:4,topRight:4} },
+    ]
+  },
+  options: {
+    responsive: true,
+    plugins: {
+      legend: { display: false },
+      tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}：${ctx.raw}千人` } }
+    },
+    scales: {
+      x: { stacked:true, ticks:{color:TICK,font:{size:9},maxRotation:30}, grid:{color:GRID} },
+      y: { stacked:true, ticks:{color:TICK,callback:v=>v+"千"}, grid:{color:GRID} }
+    }
+  }
+});
+
+// --- View 2 ---
+let detailChart = null;
+const btnWrap = document.getElementById("regionBtns");
+regions.forEach((r,i) => {
+  const b = document.createElement("button");
+  b.className = "rgn-btn" + (i===0?" active":"");
+  b.textContent = r.short;
+  b.onclick = () => {
+    document.querySelectorAll(".rgn-btn").forEach((x,j) => x.className="rgn-btn"+(j===i?" active":""));
+    updateDetail(i);
+  };
+  btnWrap.appendChild(b);
+});
+
+function updateDetail(i) {
+  const r = regions[i];
+  const yPct = (r.young/r.total*100).toFixed(1);
+  document.getElementById("d-total").textContent = r.total+"千人";
+  document.getElementById("d-total").style.color = r.color;
+  document.getElementById("d-pct").textContent = `全国シェア ${(r.total/totalNation*100).toFixed(1)}%`;
+  const ageEl = document.getElementById("d-age");
+  ageEl.textContent = r.avgAge+"歳";
+  ageEl.style.color = r.avgAge>=70?"#f87171":r.avgAge>=68?"#facc15":"#4ade80";
+  document.getElementById("d-age-label").textContent = r.avgAge>=70?"⚠️ 高齢化深刻":r.avgAge<=65?"✅ 比較的若い":"平均的レベル";
+  document.getElementById("d-young").textContent = yPct+"%";
+  document.getElementById("d-young").style.color = "#4ade80";
+  document.getElementById("d-young-abs").textContent = r.young+"千人";
+  document.getElementById("d-crop").textContent = r.crops;
+  document.getElementById("d-feature").textContent = r.feature;
+  document.getElementById("d-chart-title").textContent = r.name + " の年齢層構成";
+
+  if (detailChart) detailChart.destroy();
+  detailChart = new Chart(document.getElementById("detailChart"), {
+    type: "doughnut",
+    data: {
+      labels: ["若年（〜49歳）","中年（50〜64歳）","高齢（65歳〜）"],
+      datasets: [{ data:[r.young,r.middle,r.old],
+        backgroundColor:["#4ade80bb","#facc15bb","#f87171bb"],
+        borderColor:["#4ade80","#facc15","#f87171"], borderWidth:2, hoverOffset:8 }]
+    },
+    options: {
+      responsive: true, cutout:"60%",
+      plugins: {
+        legend: { position:"bottom", labels:{color:"#ccc",font:{size:11},boxWidth:12,padding:12} },
+        tooltip: { callbacks: { label: ctx=>`${ctx.label}：${ctx.raw}千人 (${Math.round(ctx.raw/r.total*100)}%)` }}
+      }
+    }
+  });
+}
+updateDetail(0);
+
+// --- View 3 ---
+function buildRanking(listId, sortedData, valFn, colorFn, formatFn) {
+  const wrap = document.getElementById(listId);
+  const maxVal = valFn(sortedData[0]);
+  sortedData.forEach((r,i) => {
+    const v = valFn(r);
+    const pct = Math.round(v/maxVal*100);
+    wrap.innerHTML += `<div class="insight-row">
+      <div class="insight-name" style="color:${r.color}">${i+1}. ${r.short}</div>
+      <div class="insight-bar-wrap"><div class="insight-bar" style="width:${pct}%;background:${r.color}88"></div></div>
+      <div class="insight-num" style="color:${colorFn(r)}">${formatFn(r,v)}</div>
+    </div>`;
+  });
+}
+
+buildRanking("youngRankList",
+  [...regions].sort((a,b) => b.young/b.total - a.young/a.total),
+  r => r.young/r.total,
+  r => "#4ade80",
+  (r,v) => (v*100).toFixed(1)+"%"
+);
+buildRanking("ageRankList",
+  [...regions].sort((a,b) => a.avgAge - b.avgAge),
+  r => 80-r.avgAge,
+  r => r.avgAge>=70?"#f87171":r.avgAge>=68?"#facc15":"#4ade80",
+  (r) => r.avgAge+"歳"
+);
+buildRanking("totalRankList",
+  [...regions].sort((a,b) => b.total - a.total),
+  r => r.total,
+  r => r.color,
+  (r) => r.total+"千人"
+);
+
+
+// --- Bubble chart: weightIndex = weighted avg of main crop heaviness ---
+// 重さ指数: 米5, 麦5, 酪農4, 畜産4, 果樹3.5, 野菜3, 花き1.5, さとうきび4
+const bubbleRegions = [
+  { ...regions[0], weight: 4.5 }, // 北海道: 小麦・酪農
+  { ...regions[1], weight: 5.0 }, // 東北: 米どころ
+  { ...regions[2], weight: 3.0 }, // 関東: 野菜多め
+  { ...regions[3], weight: 4.2 }, // 甲信越: 米・果物
+  { ...regions[4], weight: 2.0 }, // 中部: 花き・施設野菜
+  { ...regions[5], weight: 3.8 }, // 関西: 米・野菜
+  { ...regions[6], weight: 4.8 }, // 中国四国: 米・みかん
+  { ...regions[7], weight: 2.5 }, // 九州沖縄: 野菜・畜産
+];
+
+// Label plugin
+const labelPlugin = {
+  id: 'bubbleLabels',
+  afterDatasetsDraw(chart) {
+    const ctx = chart.ctx;
+    chart.data.datasets.forEach((ds, i) => {
+      const meta = chart.getDatasetMeta(i);
+      meta.data.forEach(el => {
+        const {x, y} = el.getProps(['x','y'], true);
+        const r = ds.data[0].r;
+        ctx.save();
+        ctx.font = `bold ${Math.max(8, Math.min(r*0.5, 11))}px 'Noto Sans JP',sans-serif`;
+        ctx.fillStyle = 'rgba(255,255,255,0.92)';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(ds.data[0].label, x, y);
+        ctx.restore();
+      });
+    });
+  }
+};
+
+new Chart(document.getElementById("bubbleChart"), {
+  type: "bubble",
+  plugins: [labelPlugin],
+  data: {
+    datasets: bubbleRegions.map(r => ({
+      label: r.short,
+      data: [{ x: r.weight, y: r.avgAge, r: Math.round(Math.sqrt(r.total)*1.5), label: r.short }],
+      backgroundColor: r.color + "bb",
+      borderColor: r.color,
+      borderWidth: 1.5,
+    }))
+  },
+  options: {
+    responsive: true,
+    plugins: {
+      legend: { display: false },
+      tooltip: { callbacks: {
+        label: ctx => {
+          const r = bubbleRegions[ctx.datasetIndex];
+          return [` ${r.name}`, ` 重さ指数: ${r.weight}`, ` 平均年齢: ${r.avgAge}歳`, ` 従事者数: ${r.total}千人`];
+        }
+      }}
+    },
+    scales: {
+      x: {
+        min: 1.0, max: 5.8,
+        title: { display: true, text: '← 軽い作業　　　重い作業 →', color: TICK, font:{size:10} },
+        ticks: { color: TICK, font:{size:9}, callback: v => ({2:'軽い',3:'中程度',4:'やや重',5:'重い'}[v]||'') },
+        grid: { color: GRID }
+      },
+      y: {
+        min: 61, max: 74,
+        title: { display: true, text: '平均年齢（歳）', color: TICK, font:{size:10} },
+        ticks: { color: TICK, font:{size:10}, callback: v => v+'歳' },
+        grid: { color: GRID }
+      }
+    }
+  }
+});
+
+// Legend cards
+const bLegend = document.getElementById("bubbleLegend");
+bubbleRegions.forEach(r => {
+  bLegend.innerHTML += `<div style="display:flex;gap:8px;align-items:flex-start;background:rgba(255,255,255,0.04);border-radius:10px;padding:8px 10px;border:1px solid ${r.color}44">
+    <div style="width:10px;height:10px;border-radius:50%;background:${r.color};margin-top:3px;flex-shrink:0"></div>
+    <div>
+      <div style="font-size:11px;font-weight:700;color:${r.color}">${r.short}</div>
+      <div style="font-size:9px;color:#64748b;margin-top:1px">${r.crops}</div>
+    </div>
+  </div>`;
+});
+
+
+
+// --- Corp charts ---
+// Donut
+new Chart(document.getElementById('corpDonut'), {
+  type: 'doughnut',
+  data: {
+    labels: ['法人・団体', '個人'],
+    datasets: [{ data: [40, 60],
+      backgroundColor: ['#818cf8cc','#4ade80cc'],
+      borderColor: ['#818cf8','#4ade80'], borderWidth: 2, hoverOffset: 6 }]
+  },
+  options: {
+    responsive: true, cutout: '62%',
+    plugins: {
+      legend: { position:'bottom', labels:{ color:'#ccc', font:{size:10}, boxWidth:10, padding:8 }},
+      tooltip: { callbacks:{ label: ctx => ` ${ctx.label}: ${ctx.raw}%` }}
+    }
+  }
+});
+
+// Trend line
+new Chart(document.getElementById('corpTrend'), {
+  type: 'line',
+  data: {
+    labels: ['2005','2010','2015','2020'],
+    datasets: [{
+      label: '法人・団体シェア',
+      data: [15, 23, 32, 40],
+      borderColor: '#818cf8', backgroundColor: '#818cf822',
+      borderWidth: 2.5, pointRadius: 4, pointBackgroundColor: '#818cf8',
+      fill: true, tension: 0.3
+    }]
+  },
+  options: {
+    responsive: true,
+    plugins: {
+      legend: { display: false },
+      tooltip: { callbacks:{ label: ctx => ` ${ctx.raw}%` }}
+    },
+    scales: {
+      x: { ticks:{ color:TICK, font:{size:9} }, grid:{ color:GRID }},
+      y: { min:0, max:55, ticks:{ color:TICK, font:{size:9}, callback: v=>v+'%' }, grid:{ color:GRID }}
+    }
+  }
+});
+
+// Band breakdown horizontal bars
+const bands = [
+  { label:'500万円未満',    corp: 3,  ind: 97 },
+  { label:'500万〜1000万',  corp: 9,  ind: 91 },
+  { label:'1000万〜3000万', corp: 20, ind: 80 },
+  { label:'3000万〜5000万', corp: 35, ind: 65 },
+  { label:'5000万〜1億',    corp: 46, ind: 54 },
+  { label:'1億〜5億',       corp: 62, ind: 38 },
+  { label:'5億円以上',      corp: 92, ind:  8 },
+];
+const bandWrap = document.getElementById('bandChart');
+bands.forEach(b => {
+  bandWrap.innerHTML += `
+  <div style="margin-bottom:9px">
+    <div style="display:flex;justify-content:space-between;margin-bottom:3px">
+      <span style="font-size:10px;color:#ccc">${b.label}</span>
+      <span style="font-size:10px;color:#818cf8;font-weight:700">${b.corp}%</span>
+    </div>
+    <div style="height:12px;border-radius:6px;overflow:hidden;background:rgba(255,255,255,0.07);display:flex">
+      <div style="width:${b.corp}%;background:linear-gradient(90deg,#818cf8,#a5b4fc);border-radius:6px 0 0 6px"></div>
+      <div style="flex:1;background:linear-gradient(90deg,#4ade80,#22c55e)"></div>
+    </div>
+  </div>`;
+});
+
+
+
+// --- Individual detail charts ---
+// Sales band data (個人経営体 推計 万経営体)
+// 2020センサス 販売金額規模別経営体数から個人経営体分を推計
+// 全体107.6万 うち個人103.7万
+const salesBands = [
+  { label:'50万円未満',      count: 31.0, pct: 29.9, color:'#94a3b8' },
+  { label:'50〜100万円',     count: 18.5, pct: 17.8, color:'#86efac' },
+  { label:'100〜300万円',    count: 26.0, pct: 25.1, color:'#4ade80' },
+  { label:'300〜500万円',    count:  9.8, pct:  9.5, color:'#22c55e' },
+  { label:'500万〜1000万円', count:  8.2, pct:  7.9, color:'#facc15' },
+  { label:'1000〜3000万円',  count:  6.4, pct:  6.2, color:'#fb923c' },
+  { label:'3000万〜1億円',   count:  2.8, pct:  2.7, color:'#f87171' },
+  { label:'1億円以上',       count:  1.0, pct:  0.9, color:'#a78bfa' },
+];
+
+// Regional data (個人経営体数 千経営体 推計)
+const indivRegions = [
+  { name:'北海道',   short:'北海道',   count: 44,  color:'#38bdf8', main:'大規模・主業が多く個人でも規模大' },
+  { name:'東北',     short:'東北',     count: 185, color:'#a78bfa', main:'副業的・高齢個人が多い' },
+  { name:'関東',     short:'関東',     count: 141, color:'#34d399', main:'都市近郊の兼業農家が多数' },
+  { name:'甲信越',   short:'甲信越',   count: 106, color:'#fb923c', main:'米・果樹の個人農家が中心' },
+  { name:'中部',     short:'中部',     count: 133, color:'#fbbf24', main:'施設園芸の個人も多い' },
+  { name:'関西',     short:'関西',     count:  86, color:'#f472b6', main:'副業・高齢化が深刻な地域' },
+  { name:'中国・四国', short:'中国四国', count: 148, color:'#4ade80', main:'棚田・中山間地の小規模多数' },
+  { name:'九州・沖縄', short:'九州沖縄', count: 294, color:'#f87171', main:'最多・野菜・畜産の個人農家' },
+];
+
+let indivSalesChart = null, indivRegionChart = null, indivBothChart = null;
+
+function showIndivChart(type) {
+  // Toggle visibility
+  document.getElementById('indiv-sales-box').style.display = type==='sales'||type==='both' ? 'block':'none';
+  document.getElementById('indiv-region-box').style.display = type==='region'||type==='both' ? 'block':'none';
+  document.getElementById('indiv-both-box').style.display = type==='both' ? 'block':'none';
+
+  // Style buttons
+  ['sales','region','both'].forEach(k => {
+    const b = document.getElementById('indiv-btn-'+k);
+    if(k===type) {
+      b.style.background = 'linear-gradient(90deg,#22c55e,#84cc16)';
+      b.style.color = '#000';
+    } else {
+      b.style.background = 'rgba(255,255,255,0.07)';
+      b.style.color = '#86efac';
+    }
+  });
+
+  if((type==='sales'||type==='both') && !indivSalesChart) buildSalesChart();
+  if((type==='region'||type==='both') && !indivRegionChart) buildRegionChart();
+  if(type==='both' && !indivBothChart) buildBothChart();
+}
+
+function buildSalesChart() {
+  indivSalesChart = new Chart(document.getElementById('indivSalesChart'), {
+    type: 'bar',
+    data: {
+      labels: salesBands.map(b => b.label),
+      datasets: [{
+        label: '経営体数（万）',
+        data: salesBands.map(b => b.count),
+        backgroundColor: salesBands.map(b => b.color+'cc'),
+        borderColor: salesBands.map(b => b.color),
+        borderWidth: 1.5, borderRadius: 5,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { display:false },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.raw}万経営体（${salesBands[ctx.dataIndex].pct}%）` }}
+      },
+      scales: {
+        x: { ticks:{ color:TICK, font:{size:8}, maxRotation:35 }, grid:{color:GRID} },
+        y: { ticks:{ color:TICK, callback:v=>v+'万' }, grid:{color:GRID} }
+      }
+    }
+  });
+  // Insight text
+  document.getElementById('salesInsight').innerHTML =
+    '• <span style="color:#94a3b8">100万円未満</span>が全体の<span style="color:#f87171;font-weight:700">47.7%</span>（副業・高齢の小規模農家）<br>' +
+    '• <span style="color:#4ade80">100〜500万円</span>が<span style="color:#4ade80;font-weight:700">34.6%</span>（準主業・兼業農家層）<br>' +
+    '• <span style="color:#facc15">500万円以上</span>は全体の<span style="color:#facc15;font-weight:700">17.7%</span>のみ（主業農家）<br>' +
+    '• <span style="color:#a78bfa">1億円超</span>の個人経営体も約<span style="color:#a78bfa;font-weight:700">1万経営体</span>存在';
+}
+
+function buildRegionChart() {
+  indivRegionChart = new Chart(document.getElementById('indivRegionChart'), {
+    type: 'bar',
+    data: {
+      labels: indivRegions.map(r => r.short),
+      datasets: [{
+        label: '個人経営体数',
+        data: indivRegions.map(r => r.count),
+        backgroundColor: indivRegions.map(r => r.color+'bb'),
+        borderColor: indivRegions.map(r => r.color),
+        borderWidth: 1.5, borderRadius: 5,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { display:false },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.raw}千経営体` }}
+      },
+      scales: {
+        x: { ticks:{ color:TICK, font:{size:9}, maxRotation:30 }, grid:{color:GRID} },
+        y: { ticks:{ color:TICK, callback:v=>v+'千' }, grid:{color:GRID} }
+      }
+    }
+  });
+  // Region cards
+  const wrap = document.getElementById('regionCards');
+  indivRegions.forEach(r => {
+    const pct = (r.count / indivRegions.reduce((s,x)=>s+x.count,0)*100).toFixed(1);
+    wrap.innerHTML += `<div style="background:rgba(255,255,255,0.04);border:1px solid ${r.color}44;border-radius:10px;padding:9px 11px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">
+        <span style="color:${r.color};font-size:11px;font-weight:700">${r.short}</span>
+        <span style="color:${r.color};font-size:13px;font-weight:900">${r.count}千</span>
+      </div>
+      <div style="height:5px;background:rgba(255,255,255,0.08);border-radius:99px;overflow:hidden;margin-bottom:4px">
+        <div style="height:100%;width:${r.count/294*100}%;background:${r.color};border-radius:99px"></div>
+      </div>
+      <div style="color:#64748b;font-size:9px">${r.main}</div>
+    </div>`;
+  });
+}
+
+function buildBothChart() {
+  // 各地域を売上規模別に分解（地域特性を反映した推計）
+  // 列: [50万未満, 50-100万, 100-300万, 300-500万, 500-1000万, 1000-3000万, 3000万-1億, 1億+]
+  const regionalSales = {
+    '北海道':   [10, 10, 15, 14, 16, 18, 12,  5],
+    '東北':     [34, 20, 24, 10,  6,  4,  1.5, 0.5],
+    '関東':     [26, 18, 26, 11,  9,  7,  2.5, 0.5],
+    '甲信越':   [30, 20, 25, 10,  7,  6,  1.5, 0.5],
+    '中部':     [25, 18, 26, 12, 10,  7,  1.5, 0.5],
+    '関西':     [38, 22, 24,  8,  5,  2.5, 0.4, 0.1],
+    '中国四国': [36, 22, 25,  9,  5,  2.5, 0.4, 0.1],
+    '九州沖縄': [25, 17, 26, 12, 10,  7,  2.5, 0.5],
+  };
+  const bandColors = ['#94a3b8','#86efac','#4ade80','#22c55e','#facc15','#fb923c','#f87171','#a78bfa'];
+  const bandNames = ['50万未満','50〜100万','100〜300万','300〜500万','500〜1000万','1000〜3000万','3000万〜1億','1億+'];
+
+  const datasets = bandNames.map((name, i) => ({
+    label: name,
+    data: indivRegions.map(r => regionalSales[r.short][i]),
+    backgroundColor: bandColors[i]+'cc',
+    stack: 'a',
+    borderRadius: i===7 ? {topLeft:4,topRight:4} : 0,
+  }));
+
+  indivBothChart = new Chart(document.getElementById('indivBothChart'), {
+    type: 'bar',
+    data: { labels: indivRegions.map(r => r.short), datasets },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { display:false },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}：${ctx.raw}%` }}
+      },
+      scales: {
+        x: { stacked:true, ticks:{color:TICK,font:{size:9},maxRotation:30}, grid:{color:GRID} },
+        y: { stacked:true, max:100, ticks:{color:TICK,callback:v=>v+'%'}, grid:{color:GRID} }
+      }
+    }
+  });
+
+  // Legend
+  const legWrap = document.getElementById('bothLegend');
+  bandNames.forEach((n,i) => {
+    legWrap.innerHTML += `<div style="display:flex;align-items:center;gap:4px;font-size:9px;color:#aaa">
+      <div style="width:9px;height:9px;border-radius:2px;background:${bandColors[i]};flex-shrink:0"></div>${n}</div>`;
+  });
+}
+
+// Init first chart
+showIndivChart('sales');
+
+
+// --- Tab ---
+function switchView(v) {
+  document.querySelectorAll(".view").forEach(el => el.classList.remove("active"));
+  document.getElementById("view-"+v).classList.add("active");
+  const keys = ["corp","indiv"];
+  document.querySelectorAll(".tab").forEach((t,i) => t.className="tab "+(keys[i]===v?"active":"inactive"));
+}
+</script>
+</body>
+</html>
